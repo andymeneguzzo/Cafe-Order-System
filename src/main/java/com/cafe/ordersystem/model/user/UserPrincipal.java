@@ -65,6 +65,66 @@ public class UserPrincipal implements UserDetails {
                 .build();
     }
 
+    /**
+     * Returns the user's full name (first name + last name)
+     *
+     * @return The user's full name
+     */
+    public String getFullName() {
+        return firstName + " " + lastName;
+    }
 
+    /**
+     * Indicates whether the user's account has expired.
+     * In our implementation, accounts never expire.
+     *
+     * @return true if the user's account is valid (not expired)
+     */
+    @Override
+    public boolean isAccountNonExpired() {
+        return true;
+    }
 
+    /**
+     * Indicates whether the user is locked or unlocked.
+     * In our implementation, accounts are never locked.
+     *
+     * @return true if the user is not locked
+     */
+    @Override
+    public boolean isAccountNonLocked() {
+        return true;
+    }
+
+    /**
+     * Indicates whether the user's credentials (password) has expired.
+     * In our implementation, credentials never expire.
+     *
+     * @return true if the user's credentials are valid (not expired)
+     */
+    @Override
+    public boolean isCredentialsNonExpired() {
+        return true;
+    }
+
+    /**
+     * Indicates whether the user is enabled or disabled.
+     * This is based on the 'active' flag in our User entity.
+     *
+     * @return true if the user is enabled
+     */
+    public boolean isEnabled() {
+        return active;
+    }
+
+    /**
+     * Checks if the user has a specific role
+     *
+     * @param roleName The name of the role to check
+     * @return true if the user has the role, false otherwise
+     */
+    public boolean hasRole(String roleName) {
+        return authorities.stream()
+                .anyMatch(authority -> authority.getAuthority().equals(roleName));
+    }
 }
