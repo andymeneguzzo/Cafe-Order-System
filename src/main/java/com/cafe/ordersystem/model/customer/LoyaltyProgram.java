@@ -7,6 +7,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
@@ -124,9 +125,79 @@ public class LoyaltyProgram extends AuditableEntity {
         return  this.points;
     }
 
+    /**
+     * Updates the tier based on the current points balance.
+     * This is called automatically when points are added or redeemed.
+     */
+    private void updateTier() {
+        Tier newTier = Tier.BRONZE;
 
+        // determine the appropriate tier based on points
+        // base case in which looping is not necessary since above 500 points there's only PLATINUM tier
+        if(this.points >= 500) {
+            newTier = Tier.PLATINUM;
+        }
 
+        for(Tier tier : Tier.values()) {
+            if(this.points >= tier.getPointsRequired()) {
+                newTier = tier; // jumps to the next tier until it finds that this tier has more points than required
+            } else {
+                break;
+            }
+        }
 
+        this.tier = newTier;
+    }
 
+    /**
+     * Calculates points needed to reach the next tier.
+     *
+     * @return Number of points needed to reach the next tier, or 0 if already at highest tier
+     */
+    @Transient
+    public int getPointsToNextTier() {
 
+        // If already at highest tier
+        if(this.tier == Tier.PLATINUM) {
+            return 0;
+        }
+
+        // Get the next tier
+        Tier[] tiers = Tier.values();
+        Tier nextTier = tiers[this.tier.ordinal() + 1];
+
+        // Calculate points needed
+        return Math.max(0, nextTier.getPointsRequired() - this.points);
+    }
+
+    /**
+     * Checks if points are about to expire (within 30 days).
+     *
+     * @return true if points are going to expire soon, false otherwise
+     */
+    @Transient
+    public boolean isPointsExpiringSoon() {
+        if(pointsExpirationDate == null) {
+            return false;
+        }
+
+        LocalDateTime thirtyDaysFromNow = LocalDateTime.now().plusDays(30);
+
+        return pointsExpirationDate.isBefore(thirtyDaysFromNow)
+                && pointsExpirationDate.isAfter(LocalDateTime.now());
+    }
+
+    /**
+     * Generates a loyalty program member number if one doesn't exist.
+     * Format: "LP-" followed by the customer ID padded to 8 digits.
+     *
+     * @return The member number
+     */
+    public String generateMemberNumber() {
+        if(this.customer != null && this.customer.getId() != null) {
+            this.memberNumber = String.format("LP-%08d", this.customer.getId());
+        }
+
+        return this.memberNumber;
+    }
 }
