@@ -91,7 +91,65 @@ public class OrderItem extends AuditableEntity {
         return baseAmount.subtract(discountAmount != null ? discountAmount : BigDecimal.ZERO);
     }
 
+    /**
+     * Applies a percentage discount to this item.
+     *
+     * @param percentage The discount percentage (e.g., 10 for 10%)
+     * @param reason The reason for the discount
+     * @return The amount of the discount applied
+     */
+    public BigDecimal applyPercentageDiscount(double percentage, String reason) {
+        if(percentage <= 0 || percentage > 100) throw new IllegalArgumentException("Percentage must be between 0 and 100");
 
+        BigDecimal baseAmount = unitPrice.multiply(BigDecimal.valueOf(quantity));
+        BigDecimal discountMultiplier = BigDecimal.valueOf(percentage/100);
 
+        this.discountAmount = baseAmount.multiply(discountMultiplier).setScale(2, BigDecimal.ROUND_HALF_UP);
+        this.discountReason = reason;
 
+        return this.discountAmount;
+    }
+
+    /**
+     * Applies a fixed amount discount to this item.
+     *
+     * @param amount The fixed discount amount
+     * @param reason The reason for the discount
+     * @return The amount of the discount applied
+     */
+    public BigDecimal applyFixedDiscount(BigDecimal amount, String reason) {
+        BigDecimal baseAmount = unitPrice.multiply(BigDecimal.valueOf(quantity));
+
+        if(amount.compareTo(baseAmount) > 0) throw new IllegalArgumentException("Discount cannot be greater than item subtotal");
+
+        this.discountAmount = amount;
+        this.discountReason = reason;
+
+        return this.discountAmount;
+    }
+
+    /**
+     * Removes any discount applied to this item.
+     */
+    public void removeDiscount() {
+        this.discountAmount = BigDecimal.ZERO;
+        this.discountReason = null;
+    }
+
+    /**
+     * Marks this item as prepared.
+     */
+    public void markAsPrepared() {
+        this.prepared = true;
+    }
+
+    /**
+     * Returns the product name for convenience.
+     *
+     * @return The name of the product
+     */
+    @Transient
+    public String getProductName() {
+        return product != null ? product.getName() : "Unknown product";
+    }
 }
