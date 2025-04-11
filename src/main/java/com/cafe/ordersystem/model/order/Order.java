@@ -2,6 +2,7 @@ package com.cafe.ordersystem.model.order;
 
 import com.cafe.ordersystem.model.common.AuditableEntity;
 import com.cafe.ordersystem.model.customer.Customer;
+import com.cafe.ordersystem.model.customer.LoyaltyProgram;
 import com.cafe.ordersystem.model.product.Product;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
@@ -238,9 +239,133 @@ public class Order extends AuditableEntity {
         return this.discountAmount;
     }
 
+    /**
+     * Applies a fixed amount discount to the entire order.
+     *
+     * @param amount The fixed discount amount
+     * @param reason The reason for the discount
+     * @return The amount of the discount applied
+     */
+    public BigDecimal applyFixedDiscount(BigDecimal amount, String reason) {
+        if(amount.compareTo(this.subtotal) > 0) throw new IllegalArgumentException("Discount cannot be greater than the order subtotal");
 
+        this.discountAmount = amount;
+        this.discountReason = reason;
 
+        recalculateAmounts();
+        return this.discountAmount;
+    }
 
+    /**
+     * Removes any order-level discount.
+     */
+    public void removeDiscount() {
+        this.discountAmount = BigDecimal.ZERO;
+        this.discountReason = null;
 
+        recalculateAmounts();
+    }
 
+    /**
+     * Processes payment for this order.
+     *
+     * @param method The payment method
+     * @param reference Payment reference (e.g., transaction ID, receipt number)
+     */
+    public void processPayment(PaymentMethod method, String reference) {
+        if(this.status != OrderStatus.CREATED) throw new IllegalArgumentException("Cannot process payment for an order not created");
+
+        this.paymentMethod = method;
+        this.paymentReference = reference;
+        this.paymentDate = LocalDateTime.now();
+        this.status = OrderStatus.PAID;
+
+        calculateLoyaltyPoints();
+    }
+
+    /**
+     * Calculates loyalty points for this order.
+     * Basic calculation: 1 point per whole currency unit spent (rounded down).
+     * Only applicable if customer has a loyalty program and payment method is eligible.
+     */
+    private void calculateLoyaltyPoints() {
+        if(customer == null || paymentMethod == null || !paymentMethod.isEligibleForLoyaltyPoints()) return;
+
+        LoyaltyProgram loyaltyProgram = customer.getLoyaltyProgram();
+        if(loyaltyProgram == null) return;
+
+        this.loyaltyPointsEarned = totalAmount.intValue();
+
+        // award points
+        loyaltyProgram.addPoints(this.loyaltyPointsEarned);
+    }
+
+    /**
+     * Updates the order status.
+     *
+     * @param newStatus The new status
+     * @return true if the status was updated, false if the update is not allowed
+     */
+    public boolean updateStatus(OrderStatus newStatus) {
+
+        if(!this.status.canProgress() && newStatus != OrderStatus.REFUNDED) {
+            return false;
+        }
+
+        if(newStatus == OrderStatus.CANCELLED && this.status.canCancel()) {
+            this.status = OrderStatus.CANCELLED;
+            return true;
+        }
+
+        if(newStatus == OrderStatus.REFUNDED && this.status.canRefund()) {
+            this.status = OrderStatus.REFUNDED;
+            return true;
+        }
+
+        // progress normally
+        if(this.status.getNextStatus() == newStatus) {
+            this.status = newStatus;
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Gets the total number of items in this order.
+     *
+     * @return The total item count
+     */
+    @Transient
+    public int getTotalItemCount() {
+        return items.stream()
+                .mapToInt(OrderItem::getQuantity)
+                .sum();
+    }
+
+    /**
+     * Checks if all items in the order have been prepared.
+     *
+     * @return true if all items are prepared, false otherwise
+     */
+    @Transient
+    public boolean areAllItemsPrepared() {
+        return !items.isEmpty() && items.stream().allMatch(OrderItem::isPrepared);
+    }
+
+    /**
+     * Gets the preparation progress as a percentage.
+     *
+     * @return The percentage of items that have been prepared (0-100)
+     */
+    @Transient
+    public int getPreparationProgress() {
+        if(items.isEmpty()) return 0;
+
+        long preparedItems = items.stream()
+                .filter(OrderItem::isPrepared)
+                .count();
+
+        return (int) (preparedItems * 100 / items.size());
+    }
 }
