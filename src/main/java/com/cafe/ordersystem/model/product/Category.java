@@ -202,10 +202,4 @@ public class Category extends AuditableEntity {
     public boolean isVisible() {
         return active && showInMenu && !getActiveProducts().isEmpty();
     }
-
-
-
-
-
-
 }
